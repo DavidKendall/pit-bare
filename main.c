@@ -15,6 +15,7 @@ int main(void)
     PIT_init();
     while (true) {
     }
+    /* Should not reach this point */
     return 0;
 }
 
@@ -34,19 +35,28 @@ void blue_init(void) {
 }
 
 void blue_toggle(void) {
+    /* Blue LED, ON <- OFF, OFF <- ON */
     GPIOB_PDOR ^= PIN21_MASK; 
 }
 
 void PIT_init(void) {
+    /* Open the clock gate to the PIT */
     SIM_SCGC6 |= (1u << 23);
+    /* Enable the clock for the PIT timers. Continue to run in debug mode */
     PIT_MCR_REG(PIT) = 0u;
-    PIT_LDVAL_REG(PIT, 0) = 30000000;
+    /* Period p = 0.5 s, bus clock f = 60 MHz, v = pf - 1 */ 
+    PIT_LDVAL_REG(PIT, 0) = 29999999;
+    /* Enable interrupt on timeout */
     PIT_TCTRL_REG(PIT, 0) |= PIT_TCTRL_TIE_MASK;
-    PIT_TCTRL_REG(PIT, 0) |= PIT_TCTRL_TEN_MASK;
+    /* Enable the interrupt in the NVIC */
     NVIC_EnableIRQ(PIT0_IRQn);
+    /* Start the timer running */
+    PIT_TCTRL_REG(PIT, 0) |= PIT_TCTRL_TEN_MASK;
 }
 
 void PIT0_IRQHandler(void) {
+    /* Call the main handler function */
     blue_toggle();
+    /* Clear the timer interrupt flag to allow further timer interrupts */
     PIT_TFLG_REG(PIT,0) |= PIT_TFLG_TIF_MASK;
 }
