@@ -2,16 +2,22 @@
 #include <stdbool.h>
 #include "MK64F12.h"
 
+#define PIN6_MASK            (1u << 6)
 #define PIN21_MASK           (1u << 21)
+
+static bool flashing = true;
 
 void blue_init(void);
 void blue_toggle(void);
+void sw2_init(void);
 void PIT_init(void);
 void PIT0_IRQHandler(void);
+void PORTC_IRQHandler(void);
 
 int main(void)
 {
     blue_init();
+    sw2_init();
     PIT_init();
     while (true) {
     }
@@ -35,8 +41,26 @@ void blue_init(void) {
 }
 
 void blue_toggle(void) {
-    /* Blue LED, ON <- OFF, OFF <- ON */
-    GPIOB_PDOR ^= PIN21_MASK; 
+    if (flashing) {
+        /* Blue LED, ON <- OFF, OFF <- ON */
+        GPIOB_PDOR ^= PIN21_MASK;
+    }
+}
+
+void sw2_init(void) {
+    /* Enable the clock to PORT C */
+    SIM_SCGC5 |= SIM_SCGC5_PORTC_MASK;
+
+    /* Select the GPIO function (Alternative 1) for pin 6 of PORT C */
+    PORTC_PCR6 &= ~PORT_PCR_MUX_MASK;
+    PORTC_PCR6 |= (1u << PORT_PCR_MUX_SHIFT);
+    /* Select interrupt trigger on rising edge - button release */
+    PORTC_PCR6 &= ~PORT_PCR_IRQC_MASK;
+    PORTC_PCR6 |= (9u << PORT_PCR_IRQC_SHIFT);
+    /* Set the data direction for pin 6 of PORT C to input */
+    GPIOC_PDDR &= ~PIN6_MASK;
+    /* Enable the interrupt in the NVIC */
+    NVIC_EnableIRQ(PORTC_IRQn);
 }
 
 void PIT_init(void) {
@@ -60,3 +84,13 @@ void PIT0_IRQHandler(void) {
     /* Clear the timer interrupt flag to allow further timer interrupts */
     PIT_TFLG_REG(PIT,0) |= PIT_TFLG_TIF_MASK;
 }
+
+void PORTC_IRQHandler(void) {
+    if (PORTC_ISFR & PIN6_MASK) {
+        /* Toggle the flashing state */
+        flashing = !flashing;
+        /* Clear the interrupt flag */
+        PORTC_ISFR |= PIN6_MASK;
+    }
+}
+
